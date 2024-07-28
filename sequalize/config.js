@@ -13,7 +13,14 @@ if (process.env.NODE_ENV !== 'production') {
     });
 }
 else {
-    sequelize = new Sequelize(process.env.DATABASE_URL);
+    sequelize = new Sequelize(process.env.DATABASE_URL, {
+        dialectOptions: {
+            ssl: {
+                require: true,
+                rejectUnauthorized: false // This line will fix potential certificate issues
+            }
+        }
+    });
 }
 
 export default sequelize;
