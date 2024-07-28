@@ -99,7 +99,7 @@ router.delete('/lab/delete/:id', async (req, res) => {
     }
     await user.removeFile(file);
     try {
-        await fs.unlink(file.path); // Use the path from the file record to delete it
+        fs.unlinkSync(file.path); // Use the path from the file record to delete it
         await file.destroy();
         return res.status(200).send({ message: 'File deleted' });
     } catch (error) {
