@@ -1,0 +1,11 @@
+import { Router } from "express";
+import usersRouter from './users.js';
+import analyseRouter from './analyse.js';
+import patientRouter from './patient.js';
+import doctorRouter from './doctor.js';
+const router = Router();
+router.use(usersRouter);
+router.use(patientRouter);
+router.use(doctorRouter);
+router.use(analyseRouter);
+export default router;
