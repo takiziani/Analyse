@@ -13,7 +13,7 @@ router.post("/users/register", async (request, response) => {
     console.log(user);
     try {
         const newuser = await User.create(user);
-        response.json(newuser);
+        response.json({ message: "User created" });
     } catch (error) {
         response.status(400).json({ error: error.message });
     }
@@ -45,22 +45,26 @@ router.post("/users/login", async (request, response) => {
     if (!isPasswordValid) {
         return response.status(400).json({ error: "Invalid password" });
     }
-    const accessToken = jwt.sign({ "id": user.id_user, "role": user.role }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "1h" });
-    const refreshToken = jwt.sign({ "id": user.id_user, "role": user.role }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: "7d" });
-    user.refresh_token = refreshToken;
-    await user.save();
-    response.cookie('refreshToken', refreshToken, {
-        httpOnly: true, // The cookie is not accessible via JavaScript
-        secure: process.env.NODE_ENV === 'production', // Use secure cookies in production (over HTTPS)
-        sameSite: 'None', // Strictly same site
-        maxAge: 7 * 24 * 60 * 60 * 1000 // Cookie expiry set to match refreshToken
-    });
+    try {
+        const accessToken = jwt.sign({ "id": user.id_user, "role": user.role }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "1h" });
+        const refreshToken = jwt.sign({ "id": user.id_user, "role": user.role }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: "7d" });
+        user.refresh_token = refreshToken;
+        await user.save();
+        response.cookie('refreshToken', refreshToken, {
+            httpOnly: true, // The cookie is not accessible via JavaScript
+            secure: process.env.NODE_ENV === 'production', // Use secure cookies in production (over HTTPS)
+            sameSite: 'None', // Strictly same site
+            maxAge: 7 * 24 * 60 * 60 * 1000 // Cookie expiry set to match refreshToken
+        });
 
-    // Send the access token to the client
-    response.json({
-        accessToken,
-        message: "Login successful"
-    });
+        // Send the access token to the client
+        response.json({
+            accessToken,
+            message: "Login successful"
+        });
+    } catch (error) {
+        response.status(400).json({ error: error.message });
+    }
 });
 router.get("/users/refresh", async (request, response) => {
     const refreshToken = request.cookies.refreshToken;

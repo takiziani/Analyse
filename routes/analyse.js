@@ -188,5 +188,44 @@ router.get("/lab/patients", async (req, res) => {
     });
     return res.status(200).send(users);
 });
-
+router.get("/lab/file/view/:id", async (req, res) => {
+    const userid = req.userid;
+    const fileid = req.params.id;
+    const file = await File.findByPk(fileid);
+    if (!file) {
+        return res.status(404).send({ message: 'File not found' });
+    }
+    const userfile = await UserFile.findOne({ where: { id_user: userid, id_file: fileid } });
+    if (!userfile) {
+        return res.status(403).send({ message: 'You are not allowed to view this file' });
+    }
+    const patient = await User.findByPk(userid);
+    if (!patient) {
+        return res.status(404).send({ message: 'Patient not found' });
+    }
+    const password = patient.password;
+    try {
+        // Read the encrypted PDF file
+        const encryptedPdfBytes = fs.readFileSync(file.path);
+        const iv = encryptedPdfBytes.slice(0, 16);
+        const encrypted = encryptedPdfBytes.slice(16);
+        // Decrypt the encrypted PDF bytes
+        const decryptedPdfBytes = decryptData(encrypted, password, iv);
+        // Create a temporary decrypted file path
+        const decryptedFilePath = path.join('uploads', 'decrypted_' + path.basename(file.path));
+        // Write the decrypted PDF to a file
+        fs.writeFileSync(decryptedFilePath, decryptedPdfBytes);
+        // Send the decrypted PDF back to the user
+        res.sendFile(decryptedFilePath, (err) => {
+            if (err) {
+                return res.status(500).send(err);
+            }
+            // Clean up the temporary decrypted file
+            fs.unlinkSync(decryptedFilePath);
+        });
+    } catch (error) {
+        console.error('Error processing file:', error);
+        return res.status(500).send({ message: 'Error processing file' });
+    }
+});
 export default router;
