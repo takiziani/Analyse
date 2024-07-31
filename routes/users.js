@@ -83,7 +83,7 @@ router.get("/users/refresh", async (request, response) => {
             return response.status(401).json({ error: "Invalid refresh token" });
         }
         const accessToken = jwt.sign({ "id": user.id_user, "role": user.role }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "1h" });
-        response.json({ accessToken });
+        response.json({ user: user.name, accessToken });
     } catch (error) {
         response.status(401).json({ error: error.message });
     }
