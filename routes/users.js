@@ -59,49 +59,97 @@ router.post("/users/login", async (request, response) => {
 
         // Send the access token to the client
         response.json({
-            accessToken,
-            message: "Login successful"
+            user: user.name,
+            accessToken
         });
     } catch (error) {
         response.status(400).json({ error: error.message });
     }
 });
 router.get("/users/refresh", async (request, response) => {
-    const refreshToken = request.cookies.refreshToken;
-    console.log(refreshToken);
-    if (!refreshToken) {
-        return response.status(401).json({ error: "Refresh token not found" });
-    }
-    let payload;
     try {
-        payload = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+        const refreshToken = request.cookies.refreshToken;
+        if (!refreshToken) {
+            return response.status(401).json({ error: "Refresh token not found" });
+        }
+        let payload;
+        try {
+            payload = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+        } catch (error) {
+            return response.status(401).json({ error: "Invalid refresh token" });
+        }
+        const user = await User.findOne({ where: { id_user: payload.id } });
+        if (!user || user.refresh_token !== refreshToken) {
+            return response.status(401).json({ error: "Invalid refresh token" });
+        }
+        const accessToken = jwt.sign({ "id": user.id_user, "role": user.role }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "1h" });
+        response.json({ accessToken });
     } catch (error) {
-        return response.status(401).json({ error: "Invalid refresh token" });
+        response.status(401).json({ error: error.message });
     }
-    const user = await User.findOne({ where: { id_user: payload.id } });
-    if (!user || user.refresh_token !== refreshToken) {
-        return response.status(401).json({ error: "Invalid refresh token" });
-    }
-    const accessToken = jwt.sign({ "id": user.id_user, "role": user.role }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "1h" });
-    response.json({ accessToken });
 });
 router.get("/users/check", verifyjwt, async (request, response) => {
     response.json({ message: "User is logged in" });
 });
 router.post("/users/logout", verifyjwt, async (request, response) => {
-    const cookies = request.cookies;
-    const user = await User.findOne({ where: { refresh_token: cookies.refreshToken } });
-    if (!user) {
-        return response.status(401).json({ error: "User not found" });
+    try {
+        const cookies = request.cookies;
+        const user = await User.findOne({ where: { refresh_token: cookies.refreshToken } });
+        if (!user) {
+            return response.status(401).json({ error: "User not found" });
+        }
+        user.refreshToken = null;
+        await user.save();
+        response.clearCookie('refreshToken', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'None',
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        });
+        response.json({ message: "Logged out" });
+    } catch (error) {
+        response.status(401).json({ error: error.message });
     }
-    user.refreshToken = null;
-    await user.save();
-    response.clearCookie('refreshToken', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'None',
-        maxAge: 7 * 24 * 60 * 60 * 1000
-    });
-    response.json({ message: "Logged out" });
+});
+router.patch("/users/update", verifyjwt, async (request, response) => {
+    const id = request.userid;
+    const user = request.body;
+    const allowedColumns = ["name", "email", "phonenumber"]; // Specify the columns that can be updated
+    try {
+        // Filter out the properties that are not allowed to be updated
+        const updatedUser = Object.keys(user).reduce((acc, key) => {
+            if (allowedColumns.includes(key)) {
+                acc[key] = user[key];
+            }
+            return acc;
+        }, {});
+        await User.update(updatedUser, { where: { id_user: id } });
+        response.json({ message: `User with id ${id} has been updated` });
+    } catch (error) {
+        response.status(400).json({ error: error.message });
+    }
+});
+router.patch("/users/updatepassword", verifyjwt, async (request, response) => {
+    const id = request.userid;
+    try {
+        const { oldpassword, newpassword } = request.body;
+        const user = await User.findByPk(id);
+        if (!user) {
+            return response.status(404).json({ error: "User not found" });
+        }
+        const isPasswordValid = await comparePassword(oldpassword, user.password);
+        if (!isPasswordValid) {
+            return response.status(400).json({ error: "Invalid password" });
+        }
+        const hash = await hashPassword(newpassword);
+        try {
+            await User.update({ password: hash }, { where: { id_user: id } });
+            response.json({ message: "Password updated" });
+        } catch (error) {
+            response.status(400).json({ error: error.message });
+        }
+    } catch (error) {
+        response.status(400).json({ error: error.message });
+    }
 });
 export default router;
