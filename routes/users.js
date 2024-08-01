@@ -54,7 +54,8 @@ router.post("/users/login", async (request, response) => {
             httpOnly: true, // The cookie is not accessible via JavaScript
             secure: process.env.NODE_ENV === 'production', // Use secure cookies in production (over HTTPS)
             sameSite: 'None', // Strictly same site
-            maxAge: 7 * 24 * 60 * 60 * 1000 // Cookie expiry set to match refreshToken
+            maxAge: 7 * 24 * 60 * 60 * 1000,// Cookie expiry set to match refreshToken,
+
         });
 
         // Send the access token to the client

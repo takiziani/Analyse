@@ -44,46 +44,19 @@ router.get("/doctor/file/view/:id", verifydoctor, async (req, res) => {
     const absolutePath = path.resolve(file.path);
     res.sendFile(absolutePath);
 });
-router.get("/doctor/search/:userid", verifydoctor, async (req, res) => {
-    const userid = req.userid;
-    const searchid = req.params.userid;
-    const user = await User.findByPk(userid);
-    const files = await user.getFiles();
-    const filesIds = files.map(file => file.id_file);
-    const founduser = await UserFile.findAll({
-        where: {
-            id_file: {
-                [Op.in]: filesIds
-            },
-            id_user: searchid
-        }
-    });
-    if (founduser.length === 0) {
-        return res.status(404).send({ message: 'User not found' });
-    }
-    return res.status(200).send(founduser);
-});
 router.get("/doctor/patients", verifydoctor, async (req, res) => {
     const userid = req.userid;
     const user = await User.findByPk(userid);
     const files = await user.getFiles();
-    const filesIds = files.map(file => file.id_file);
-    let usersids = await UserFile.findAll({
-        where: {
-            id_file: {
-                [Op.in]: filesIds
-            }
-        }
-    });
-    usersids = usersids.map(userfile => userfile.id_user).filter(id => id !== userid);
-    usersids = [...new Set(usersids)];
-    const users = await User.findAll({
+    const patientsids = files.map(file => file.info.sharedby);
+    let patients = await User.findAll({
         where: {
             id_user: {
-                [Op.in]: usersids
+                [Op.in]: patientsids
             }
-        }
+        },
+        attributes: ['id_user', 'name', 'email', 'phonenumber']
     });
-    return res.status(200).send(users);
+    return res.status(200).send(patients);
 });
 export default router;

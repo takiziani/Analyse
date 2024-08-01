@@ -39,7 +39,7 @@ router.post("/patient/file/share", async (req, res) => {
     if (!userfile) {
         return res.status(403).send({ message: 'You are not allowed to share this file' });
     }
-    await doctor.addFile(file);
+    await doctor.addFile(file, { through: { info: { sharedby: userid } } });
     res.status(200).send({ message: 'File shared with doctor' });
 });
 // Function to decrypt data using AES

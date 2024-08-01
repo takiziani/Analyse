@@ -71,8 +71,8 @@ router.post('/lab/upload', upload.single('file'), async (req, res) => {
 
         // Save file information in the database
         const uploadedfile = await File.create({ filename: file.originalname, path: encryptedFilePath });
-        await UserFile.create({ id_user: userid, id_file: uploadedfile.id_file, info: { patientid: patientid } });
-        await UserFile.create({ id_user: patientid, id_file: uploadedfile.id_file, info: { labname: user.name } });
+        await UserFile.create({ id_user: userid, id_file: uploadedfile.id_file, info: { sharedwith: patientid } });
+        await UserFile.create({ id_user: patientid, id_file: uploadedfile.id_file, info: { sharedby: user.id_user } });
 
         // Clean up the original uploaded file
         fs.unlinkSync(filePath);
@@ -184,7 +184,7 @@ router.get("/lab/patients", async (req, res) => {
                 [Op.in]: usersids
             }
         },
-        attributes: ['id_user', 'username', 'email', 'phonenumber']
+        attributes: ['id_user', 'name', 'email', 'phonenumber']
     });
     return res.status(200).send(users);
 });
