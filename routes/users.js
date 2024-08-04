@@ -144,7 +144,8 @@ router.patch("/users/updatepassword", verifyjwt, async (request, response) => {
         }
         const hash = await hashPassword(newpassword);
         try {
-            await User.update({ password: hash }, { where: { id_user: id } });
+            user.password = hash;
+            await user.save();
             response.json({ message: "Password updated" });
         } catch (error) {
             response.status(400).json({ error: error.message });
