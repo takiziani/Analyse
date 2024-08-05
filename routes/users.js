@@ -8,10 +8,10 @@ import { Op } from 'sequelize';
 dotenv.config();
 const router = Router();
 router.post("/users/register", async (request, response) => {
-    const user = request.body;
-    user.password = await hashPassword(user.password);
-    console.log(user);
     try {
+        const user = request.body;
+        user.password = await hashPassword(user.password);
+        console.log(user);
         const newuser = await User.create(user);
         response.json({ message: "User created" });
     } catch (error) {
