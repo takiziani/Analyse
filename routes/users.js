@@ -90,7 +90,7 @@ router.get("/users/refresh", async (request, response) => {
     }
 });
 router.get("/users/check", verifyjwt, async (request, response) => {
-    response.json({ message: "User is logged in" });
+    response.json({ message: "User is logged in", userid: request.userid });
 });
 router.post("/users/logout", verifyjwt, async (request, response) => {
     try {

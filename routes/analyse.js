@@ -8,18 +8,30 @@ import path from 'path';
 import { Op } from "sequelize";
 import { PDFDocument } from "pdf-lib";
 import crypto from "crypto";
+import dotenv from "dotenv";
+import { createClient } from "@supabase/supabase-js";
+dotenv.config();
 const router = Router();
 router.use(verifyjwt);
 router.use(isalab);
-const storage = multer.diskStorage({
-    destination: 'uploads',
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
+function destination() {
+    if (process.env.NODE_ENV === 'production') {
+        return process.env.UPLOADS_DIR || 'uploads';
+    }
+}
+const storage = multer.memoryStorage();
+/*const storage = multer.diskStorage({
+    destination: destination(),
     filename: function (req, file, cb) {
         // Generate a unique filename with the original extension
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         const extension = path.extname(file.originalname);
         cb(null, file.fieldname + '-' + uniqueSuffix + extension);
     }
-});
+});*/
 const upload = multer({
     storage: storage,
     fileFilter: (req, file, cb) => {
@@ -57,25 +69,27 @@ router.post('/lab/upload', upload.single('file'), async (req, res) => {
     }
     const password = patient.password;
     try {
-        // Read the original PDF
-        const filePath = file.path;
-        const existingPdfBytes = fs.readFileSync(filePath);
-
         // Encrypt the PDF bytes
-        const { iv, encrypted } = encryptData(Buffer.from(existingPdfBytes), password);
+        const { iv, encrypted } = encryptData(file.buffer, password);
 
-        // Write the encrypted PDF to a file
-        const encryptedFilePath = path.join('uploads', 'encrypted_' + file.filename);
-        const encryptedPdf = Buffer.concat([iv, encrypted]);
-        fs.writeFileSync(encryptedFilePath, encryptedPdf);
+        // Upload the encrypted PDF to Supabase Storage
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const filePath = `uploads/encrypted_${uniqueSuffix}${path.extname(file.originalname)}`;
+        const { data, error } = await supabase
+            .storage
+            .from('uploads')
+            .upload(filePath, Buffer.concat([iv, encrypted]), {
+                contentType: file.mimetype
+            });
+
+        if (error) {
+            throw error;
+        }
 
         // Save file information in the database
-        const uploadedfile = await File.create({ filename: file.originalname, path: encryptedFilePath });
+        const uploadedfile = await File.create({ filename: file.originalname, path: filePath });
         await UserFile.create({ id_user: userid, id_file: uploadedfile.id_file, info: { sharedwith: patientid } });
         await UserFile.create({ id_user: patientid, id_file: uploadedfile.id_file, info: { sharedby: user.id_user } });
-
-        // Clean up the original uploaded file
-        fs.unlinkSync(filePath);
 
         return res.status(200).send({ message: 'File uploaded and encrypted' });
     } catch (error) {
@@ -83,6 +97,7 @@ router.post('/lab/upload', upload.single('file'), async (req, res) => {
         return res.status(500).send({ message: 'Error processing file' });
     }
 });
+
 router.get('/lab/files', async (req, res) => {
     const userid = req.userid;
     const user = await User.findByPk(userid);
