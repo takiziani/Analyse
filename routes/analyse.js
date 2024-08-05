@@ -83,6 +83,7 @@ router.post('/lab/upload', upload.single('file'), async (req, res) => {
             });
 
         if (error) {
+            console.error('Error uploading file to Supabase:', error);
             throw error;
         }
 
