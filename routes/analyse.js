@@ -5,7 +5,7 @@ import multer from "multer";
 import isalab from "../utils/isalab.js";
 import fs from "fs";
 import path from 'path';
-import { Op } from "sequelize";
+import { Op, where } from "sequelize";
 import { PDFDocument } from "pdf-lib";
 import crypto from "crypto";
 import dotenv from "dotenv";
@@ -64,7 +64,7 @@ router.post('/lab/upload', upload.single('file'), async (req, res) => {
         return res.status(400).send({ message: 'No file uploaded or the type of the file is not pdf' });
     }
     const patient = await User.findByPk(patientid);
-    if (!patient) {
+    if (patient.role != "patient") {
         return res.status(404).send({ message: 'Patient not found' });
     }
     const password = patient.password;
@@ -90,8 +90,7 @@ router.post('/lab/upload', upload.single('file'), async (req, res) => {
         // Save file information in the database
         const uploadedfile = await File.create({ filename: file.originalname, path: filePath });
         await UserFile.create({ id_user: userid, id_file: uploadedfile.id_file, info: { sharedwith: patientid } });
-        await UserFile.create({ id_user: patientid, id_file: uploadedfile.id_file, info: { sharedby: user.id_user } });
-
+        await UserFile.create({ id_user: patientid, id_file: uploadedfile.id_file, info: { sharedwby: userid } });
         return res.status(200).send({ message: 'File uploaded and encrypted' });
     } catch (error) {
         console.error('Error processing file:', error);
@@ -100,10 +99,58 @@ router.post('/lab/upload', upload.single('file'), async (req, res) => {
 });
 
 router.get('/lab/files', async (req, res) => {
-    const userid = req.userid;
-    const user = await User.findByPk(userid);
-    const files = await user.getFiles();
-    return res.status(200).send(files);
+    try {
+        const userid = req.userid;
+        const lab = await User.findByPk(userid);
+        const labfiles = await UserFile.findAll({
+            where: {
+                id_user: userid,
+            },
+            attributes: ['id_file', 'info', 'created_at'],
+        });
+        const filesid = labfiles.map(labfile => labfile.id_file);
+        const files = await File.findAll({
+            where: {
+                id_file: {
+                    [Op.in]: filesid
+                }
+            },
+            attributes: ['id_file', 'filename']
+        });
+        const patiientsids = labfiles.map(labfile => labfile.info.sharedwith);
+        const patients = await User.findAll({
+            where: {
+                id_user: {
+                    [Op.in]: patiientsids
+                }
+            },
+            attributes: ['id_user', 'name']
+        });
+        const filesplus = files.map(file => {
+            const labfile = labfiles.find(labfile => labfile.id_file === file.id_file);
+            console.log(labfile);
+            if (!labfile) {
+                throw new Error('Labfile not found');
+            }
+            const patient = patients.find(patient => patient.id_user == labfile.info.sharedwith);
+            if (!patient) {
+                throw new Error('Patient not found');
+            }
+            if (!labfile) {
+                throw new Error('Labfile not found');
+            }
+            return {
+                id_file: file.id_file,
+                filename: file.filename,
+                patient: patient,
+                created_at: labfile.created_at
+            };
+        });
+        return res.status(200).send(filesplus);
+    } catch (error) {
+        console.error('Error getting files:', error);
+        return res.status(500).send({ message: 'Error getting files' });
+    }
 });
 router.delete('/lab/delete/:id', async (req, res) => {
     const userid = req.userid;
@@ -179,30 +226,6 @@ router.get('/lab/download/:id', async (req, res) => {
         console.error('Error processing file:', error);
         return res.status(500).send({ message: 'Error processing file' });
     }
-});
-router.get("/lab/patients", async (req, res) => {
-    const userid = req.userid;
-    const user = await User.findByPk(userid);
-    const files = await user.getFiles();
-    const filesIds = files.map(file => file.id_file);
-    let usersids = await UserFile.findAll({
-        where: {
-            id_file: {
-                [Op.in]: filesIds
-            }
-        }
-    });
-    usersids = usersids.map(userfile => userfile.id_user).filter(id => id !== userid);
-    usersids = [...new Set(usersids)];
-    const users = await User.findAll({
-        where: {
-            id_user: {
-                [Op.in]: usersids
-            }
-        },
-        attributes: ['id_user', 'name', 'email', 'phonenumber']
-    });
-    return res.status(200).send(users);
 });
 router.get("/lab/file/view/:id", async (req, res) => {
     const userid = req.userid;
