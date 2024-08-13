@@ -5,10 +5,29 @@ import path from 'path';
 const router = Router();
 router.use(verifyjwt);
 router.get('/patient/files', async (req, res) => {
-    const userid = req.userid;
-    const user = await User.findByPk(userid);
-    const files = await user.getFiles();
-    return res.status(200).send(files);
+    try {
+        const userid = req.userid;
+        const user = await User.findByPk(userid);
+        const files = await user.getFiles(
+            {
+                attributes: ['id_file', 'filename', 'createdAt'],
+                joinTableAttributes: ['info']
+            }
+        );
+        const filesplus = await Promise.all(files.map(async (file) => {
+            const labid = file.UserFile.info.sharedby;
+            const lab = await User.findByPk(labid);
+            return {
+                id: file.id_file,
+                filename: file.filename,
+                createdAt: file.createdAt,
+                lab: lab.name,
+            };
+        }));
+        return res.status(200).send(filesplus);
+    } catch (error) {
+        return res.status(500).send({ message: error.message });
+    }
 });
 router.get("/patient/file/download/:id", async (req, res) => {
     const userid = req.userid;

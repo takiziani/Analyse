@@ -17,21 +17,7 @@ router.use(isalab);
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
-function destination() {
-    if (process.env.NODE_ENV === 'production') {
-        return process.env.UPLOADS_DIR || 'uploads';
-    }
-}
 const storage = multer.memoryStorage();
-/*const storage = multer.diskStorage({
-    destination: destination(),
-    filename: function (req, file, cb) {
-        // Generate a unique filename with the original extension
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const extension = path.extname(file.originalname);
-        cb(null, file.fieldname + '-' + uniqueSuffix + extension);
-    }
-});*/
 const upload = multer({
     storage: storage,
     fileFilter: (req, file, cb) => {
@@ -48,13 +34,10 @@ function encryptData(data, password) {
     const iv = crypto.randomBytes(16); // Initialization vector
     const key = crypto.createHash('sha256').update(password).digest(); // Generate key from password
     const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-
     let encrypted = cipher.update(data);
     encrypted = Buffer.concat([encrypted, cipher.final()]);
-
     return { iv, encrypted };
 }
-
 router.post('/lab/upload', upload.single('file'), async (req, res) => {
     const userid = req.userid;
     const patientid = req.body.patientid;
@@ -71,7 +54,6 @@ router.post('/lab/upload', upload.single('file'), async (req, res) => {
     try {
         // Encrypt the PDF bytes
         const { iv, encrypted } = encryptData(file.buffer, password);
-
         // Upload the encrypted PDF to Supabase Storage
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         const filePath = `uploads/encrypted_${uniqueSuffix}${path.extname(file.originalname)}`;
@@ -90,7 +72,7 @@ router.post('/lab/upload', upload.single('file'), async (req, res) => {
         // Save file information in the database
         const uploadedfile = await File.create({ filename: file.originalname, path: filePath });
         await UserFile.create({ id_user: userid, id_file: uploadedfile.id_file, info: { sharedwith: patientid } });
-        await UserFile.create({ id_user: patientid, id_file: uploadedfile.id_file, info: { sharedwby: userid } });
+        await UserFile.create({ id_user: patientid, id_file: uploadedfile.id_file, info: { sharedby: userid } });
         return res.status(200).send({ message: 'File uploaded and encrypted' });
     } catch (error) {
         console.error('Error processing file:', error);
@@ -135,9 +117,6 @@ router.get('/lab/files', async (req, res) => {
             const patient = patients.find(patient => patient.id_user == labfile.info.sharedwith);
             if (!patient) {
                 throw new Error('Patient not found');
-            }
-            if (!labfile) {
-                throw new Error('Labfile not found');
             }
             return {
                 id_file: file.id_file,
