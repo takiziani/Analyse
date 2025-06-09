@@ -41,7 +41,7 @@ router.post("/users/login", async (request, response) => {
         return response.status(404).json({ error: "User not found" });
     }
     const hash = hashPassword(password);
-    const isPasswordValid = await comparePassword(password, user.password);
+    const isPasswordValid = comparePassword(password, user.password);
     if (!isPasswordValid) {
         return response.status(400).json({ error: "Invalid password" });
     }
