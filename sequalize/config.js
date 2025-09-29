@@ -12,15 +12,4 @@ if (process.env.NODE_ENV == 'production') {
         }
     });
 }
-else {
-    sequelize = new Sequelize({
-        dialect: "postgres",
-        host: "localhost",
-        port: 5432,
-        username: "postgres",
-        password: "2003",
-        database: "Analyse",
-    });
-}
-
 export default sequelize;
