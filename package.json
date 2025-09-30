@@ -18,7 +18,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
-    "multer": "^2.0.1",
+    "multer": "2.0.1",
     "nodemon": "^3.1.4",
     "pdf-lib": "^1.17.1",
     "pg": "^8.12.0",
